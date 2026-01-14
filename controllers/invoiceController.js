@@ -38,9 +38,29 @@ const createInvoice = async (req, res) => {
     try {
         const { items } = req.body;
 
+        // Debug: Log GST fields
+        console.log('Creating Invoice - GST Data:', {
+            gstEnabled: req.body.gstEnabled,
+            gstRate: req.body.gstRate,
+            taxType: req.body.taxType,
+            cgst: req.body.cgst,
+            sgst: req.body.sgst,
+            igst: req.body.igst,
+            taxableAmount: req.body.taxableAmount,
+            gstAmount: req.body.gstAmount
+        });
+
         // Create Invoice
         const invoice = new Invoice(req.body);
         const createdInvoice = await invoice.save();
+
+        console.log('Invoice Saved - GST Fields:', {
+            gstEnabled: createdInvoice.gstEnabled,
+            gstRate: createdInvoice.gstRate,
+            cgst: createdInvoice.cgst,
+            sgst: createdInvoice.sgst,
+            igst: createdInvoice.igst
+        });
 
         // Update Stock
         if (items && items.length > 0) {
@@ -57,6 +77,7 @@ const createInvoice = async (req, res) => {
 
         res.status(201).json(createdInvoice);
     } catch (error) {
+        console.error('Error creating invoice:', error);
         res.status(400).json({ message: error.message });
     }
 };

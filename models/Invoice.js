@@ -26,6 +26,20 @@ const invoiceSchema = mongoose.Schema({
         amount: { type: Number, required: true }
     }],
     
+    // GST Fields
+    gstEnabled: { type: Boolean, default: false },
+    gstRate: { type: Number, default: 0 }, // 5, 12, 18, 28
+    cgst: { type: Number, default: 0 }, // Central GST (for intra-state)
+    sgst: { type: Number, default: 0 }, // State GST (for intra-state)
+    igst: { type: Number, default: 0 }, // Integrated GST (for inter-state)
+    gstAmount: { type: Number, default: 0 }, // Total GST amount
+    taxType: { 
+        type: String, 
+        enum: ['Inclusive', 'Exclusive'], 
+        default: 'Exclusive' 
+    },
+    stateOfSupply: { type: String }, // For IGST vs CGST/SGST determination
+    
     subtotal: { type: Number, default: 0 },
     additionalCharges: { type: Number, default: 0 },
     overallDiscount: { type: Number, default: 0 },
@@ -43,7 +57,13 @@ const invoiceSchema = mongoose.Schema({
     branch: { type: String, default: 'Main Branch' },
     
     notes: { type: String },
-    terms: { type: String }
+    terms: { type: String },
+    
+    // Track who created this invoice
+    createdBy: { 
+        type: String,
+        default: 'Admin'
+    }
 }, {
     timestamps: true
 });

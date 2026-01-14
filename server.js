@@ -44,6 +44,10 @@ app.use('/api/staff', require('./routes/staffRoutes'));
 app.use('/api/branches', require('./routes/branchRoutes'));
 app.use('/api/accounts', require('./routes/accountRoutes'));
 app.use('/api/attendance', require('./routes/attendanceRoutes'));
+app.use('/api/expenses', require('./routes/expenseRoutes'));
+app.use('/api/expense-categories', require('./routes/expenseCategoryRoutes'));
+
+
 
 const PORT = process.env.PORT || 5000;
 
