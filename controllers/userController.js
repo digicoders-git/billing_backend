@@ -66,13 +66,16 @@ const loginUser = async (req, res) => {
     const { email, username, password } = req.body;
 
     // Use either email or username as the identifier
-    const loginIdentifier = email || username;
+    const rawIdentifier = email || username;
 
-    if (!loginIdentifier || !password) {
+    if (!rawIdentifier || !password) {
         return res.status(400).json({ message: 'Please provide email/username and password' });
     }
 
+    const loginIdentifier = rawIdentifier.trim();
+
     // 1. Try to find in User collection
+    // Note: Emails should ideally be stored lowercase, but we search as-is first
     let user = await User.findOne({
         $or: [
             { email: loginIdentifier },
