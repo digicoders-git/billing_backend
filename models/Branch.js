@@ -41,7 +41,13 @@ const branchSchema = new mongoose.Schema({
             enum: [
                 'Dashboard', 'Parties', 'Items', 'Sales', 'Purchases', 
                 'Payments', 'Reports', 'Settings', 'Users', 'Branches',
-                'Invoices', 'Quotations', 'Returns', 'Godowns', 'Staff'
+                'Invoices', 'Quotations', 'Returns', 'Godowns', 'Staff',
+                
+                // Add exact matches for Sidebar labels
+                'Staff Attendance & Payroll', 
+                'Branch Management', 
+                'Cash & Bank', 
+                'Expenses'
             ],
             required: true
         },
