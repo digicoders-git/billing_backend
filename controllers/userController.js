@@ -57,6 +57,8 @@ const registerUser = async (req, res) => {
     }
 };
 
+const Branch = require('../models/Branch');
+
 // @desc    Authenticate a user
 // @route   POST /api/users/login
 // @access  Public
@@ -70,8 +72,8 @@ const loginUser = async (req, res) => {
         return res.status(400).json({ message: 'Please provide email/username and password' });
     }
 
-    // Check for user by email OR username
-    const user = await User.findOne({
+    // 1. Try to find in User collection
+    let user = await User.findOne({
         $or: [
             { email: loginIdentifier },
             { username: loginIdentifier }
@@ -79,7 +81,7 @@ const loginUser = async (req, res) => {
     });
 
     if (user && (await bcrypt.compare(password, user.password))) {
-        res.json({
+        return res.json({
             _id: user.id,
             name: user.name,
             email: user.email,
@@ -88,9 +90,38 @@ const loginUser = async (req, res) => {
             branch: user.branch,
             token: generateToken(user._id),
         });
-    } else {
-        res.status(400).json({ message: 'Invalid credentials' });
     }
+
+    // 2. If not found in User, try Branch collection
+    const branch = await Branch.findOne({
+        $or: [
+            { username: loginIdentifier },
+            { 'contact.email': loginIdentifier }
+        ]
+    });
+
+    if (branch) {
+        if (branch.isActive === false) {
+             return res.status(401).json({ message: 'Branch account is inactive' });
+        }
+
+        if (await bcrypt.compare(password, branch.password)) {
+            return res.json({
+                _id: branch.id,
+                name: branch.name, // Branch Name
+                email: branch.contact?.email || '',
+                username: branch.username,
+                role: 'branch_manager',
+                branch: branch.name, // The branch name itself
+                branchId: branch.id,
+                permissions: branch.permissions,
+                token: generateToken(branch._id),
+                isBranch: true
+            });
+        }
+    }
+
+    res.status(400).json({ message: 'Invalid credentials' });
 };
 
 // @desc    Get user data

@@ -16,7 +16,21 @@ const protect = async (req, res, next) => {
             const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
             // Get user from the token
-            req.user = await User.findById(decoded.id).select('-password');
+            let user = await User.findById(decoded.id).select('-password');
+
+            // If not found in User, check Branch
+            if (!user) {
+                const Branch = require('../models/Branch');
+                user = await Branch.findById(decoded.id).select('-password');
+                if (user) {
+                    // Add a virtual role for consistency if needed, usually branches are managers
+                    user.role = 'branch_manager'; 
+                    // Add branch identifier for consistency
+                    user.branch = user.name;
+                }
+            }
+            
+            req.user = user;
 
             if (!req.user) {
                 return res.status(401).json({ message: 'Not authorized, user not found' });
