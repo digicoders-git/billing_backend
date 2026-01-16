@@ -13,7 +13,8 @@ const itemSchema = mongoose.Schema({
     minStock: { type: Number, default: 0 }, // Low Stock Alert
     godown: { type: String }, // Could be a ref to Godown model, but string for now based on simple usage
     batchNumber: { type: String },
-    expiryDate: { type: Date }
+    expiryDate: { type: Date },
+    gstRate: { type: String, default: 'None' }
 }, {
     timestamps: true
 });

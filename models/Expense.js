@@ -83,6 +83,11 @@ const expenseSchema = new mongoose.Schema({
         type: String,
         default: 'Cash'
     },
+    accountId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Account',
+        required: false
+    },
     description: {
         type: String
     },

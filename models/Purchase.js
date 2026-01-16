@@ -25,6 +25,7 @@ const purchaseSchema = mongoose.Schema({
         unit: { type: String },
         rate: { type: Number, required: true }, // Purchase Rate
         discount: { type: Number, default: 0 },
+        gstRate: { type: String, default: 'None' },
         tax: { type: Number, default: 0 },
         amount: { type: Number, required: true }
     }],

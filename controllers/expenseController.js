@@ -5,7 +5,9 @@ const Expense = require('../models/Expense');
 // @access  Public
 const getExpenses = async (req, res) => {
     try {
-        const expenses = await Expense.find().sort({ date: -1 });
+        const expenses = await Expense.find()
+            .populate('accountId', 'name bankName type')
+            .sort({ date: -1 });
         res.json(expenses);
     } catch (err) {
         console.error(err.message);
@@ -56,7 +58,8 @@ const addExpense = async (req, res) => {
         items, 
         totalAmount, 
         amount, 
-        paymentMode, 
+        paymentMode,
+        accountId, // New
         description 
     } = req.body;
 
@@ -80,6 +83,7 @@ const addExpense = async (req, res) => {
             totalAmount: totalAmount || amount || 0,
             amount: totalAmount || amount || 0, 
             paymentMode,
+            accountId, // New
             description
         });
 
@@ -98,8 +102,8 @@ const updateExpense = async (req, res) => {
     const { 
         date, 
         expenseNumber, 
-        originalInvoiceNumber,
-        partyName,
+        originalInvoiceNumber, 
+        partyName, 
         
         gstEnabled,
         gstInNumber,
@@ -113,7 +117,8 @@ const updateExpense = async (req, res) => {
         items,
         totalAmount,
         amount, 
-        paymentMode, 
+        paymentMode,
+        accountId, // New
         description 
     } = req.body;
 
@@ -139,6 +144,7 @@ const updateExpense = async (req, res) => {
     if (amount) expenseFields.amount = amount;
     else if (totalAmount) expenseFields.amount = totalAmount; 
     if (paymentMode) expenseFields.paymentMode = paymentMode;
+    if (accountId) expenseFields.accountId = accountId; // New
     if (description) expenseFields.description = description;
 
     try {
