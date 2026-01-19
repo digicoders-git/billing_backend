@@ -12,6 +12,7 @@ const partySchema = mongoose.Schema({
     category: { type: String },
     billingAddress: { type: String },
     shippingAddress: { type: String },
+    placeOfSupply: { type: String },
     creditPeriod: { type: Number, default: 30 },
     creditLimit: { type: Number, default: 0 },
     contactPerson: { type: String },

@@ -20,8 +20,11 @@ const invoiceSchema = mongoose.Schema({
         hsn: { type: String },
         qty: { type: Number, required: true },
         unit: { type: String },
+        mrp: { type: Number, default: 0 },
         rate: { type: Number, required: true },
         discount: { type: Number, default: 0 }, // Percentage
+        gstRate: { type: Number, default: 0 },
+        gstAmount: { type: Number, default: 0 },
         tax: { type: Number, default: 0 },
         amount: { type: Number, required: true }
     }],

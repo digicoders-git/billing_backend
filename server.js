@@ -16,8 +16,10 @@ const app = express();
 const corsOptions = {
     origin: [
         'http://localhost:5173',
+        'http://localhost:5174',
         'http://localhost:3000',
-        'https://billing-frontend-woad.vercel.app'
+        'https://billing-frontend-woad.vercel.app',
+        process.env.FRONTEND_URL || '*'
     ],
     credentials: true,
     optionsSuccessStatus: 200,
@@ -46,6 +48,8 @@ app.use('/api/accounts', require('./routes/accountRoutes'));
 app.use('/api/attendance', require('./routes/attendanceRoutes'));
 app.use('/api/expenses', require('./routes/expenseRoutes'));
 app.use('/api/expense-categories', require('./routes/expenseCategoryRoutes'));
+app.use('/api/party-categories', require('./routes/partyCategoryRoutes'));
+app.use('/api/item-categories', require('./routes/itemCategoryRoutes'));
 
 
 

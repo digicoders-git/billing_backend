@@ -33,6 +33,16 @@ const getItemById = async (req, res) => {
 // @access  Public
 const createItem = async (req, res) => {
     try {
+        const { name } = req.body;
+        
+        if (!name || name.trim() === '') {
+            return res.status(400).json({ message: 'Item name is required' });
+        }
+
+        if (!/[a-zA-Z]/.test(name)) {
+            return res.status(400).json({ message: 'Item name must contain at least one letter' });
+        }
+
         const item = new Item(req.body);
         const createdItem = await item.save();
         res.status(201).json(createdItem);
@@ -46,6 +56,17 @@ const createItem = async (req, res) => {
 // @access  Public
 const updateItem = async (req, res) => {
     try {
+        const { name } = req.body;
+
+        if (name !== undefined) {
+            if (!name || name.trim() === '') {
+                return res.status(400).json({ message: 'Item name is required' });
+            }
+            if (!/[a-zA-Z]/.test(name)) {
+                return res.status(400).json({ message: 'Item name must contain at least one letter' });
+            }
+        }
+
         const item = await Item.findById(req.params.id);
         if (item) {
             Object.assign(item, req.body);

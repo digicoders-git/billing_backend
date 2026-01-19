@@ -14,6 +14,7 @@ const itemSchema = mongoose.Schema({
     godown: { type: String }, // Could be a ref to Godown model, but string for now based on simple usage
     batchNumber: { type: String },
     expiryDate: { type: Date },
+    hsn: { type: String },
     gstRate: { type: String, default: 'None' }
 }, {
     timestamps: true
