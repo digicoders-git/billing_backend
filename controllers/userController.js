@@ -150,8 +150,63 @@ const getAllUsers = async (req, res) => {
 // @route   PUT /api/users/profile
 // @access  Private
 const updateUserProfile = async (req, res) => {
-    const user = await User.findById(req.user._id);
+    let user = await User.findById(req.user._id);
 
+    // If not in User, check Branch
+    if (!user) {
+        const Branch = require('../models/Branch');
+        const branch = await Branch.findById(req.user._id);
+        
+        if (branch) {
+            // Update Branch Profile
+            if (req.body.name) branch.name = req.body.name;
+            if (req.body.username && req.body.username !== branch.username) {
+                 const existing = await Branch.findOne({ username: req.body.username });
+                 if (existing) return res.status(400).json({ message: 'Username already exists' });
+                 branch.username = req.body.username;
+            }
+            
+            // Update contact info
+            if (!branch.contact) branch.contact = {};
+            if (req.body.email) branch.contact.email = req.body.email;
+            if (req.body.phone) branch.contact.phone = req.body.phone;
+
+            // Handle address (simple string to street mapping for simplified profile view)
+            if (req.body.address) {
+                if (!branch.address) branch.address = {};
+                branch.address.street = req.body.address; // simple mapping
+            }
+
+            if (req.body.password) {
+                const salt = await bcrypt.genSalt(10);
+                branch.password = await bcrypt.hash(req.body.password, salt);
+            }
+
+            const updatedBranch = await branch.save();
+            
+            // Format address for response
+            const addressStr = updatedBranch.address ? 
+                [updatedBranch.address.street, updatedBranch.address.city, updatedBranch.address.state]
+                .filter(Boolean).join(', ') : '';
+
+            return res.json({
+                _id: updatedBranch._id,
+                name: updatedBranch.name,
+                email: updatedBranch.contact?.email || '',
+                username: updatedBranch.username,
+                phone: updatedBranch.contact?.phone || '',
+                businessName: '', // Branches use main business name usually
+                gstin: '',
+                address: addressStr,
+                role: 'branch_manager',
+                branch: updatedBranch.name,
+                token: generateToken(updatedBranch._id),
+            });
+        }
+        return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Standard User Update
     if (user) {
         // Check if email is being changed and if it already exists
         if (req.body.email && req.body.email !== user.email) {
@@ -189,8 +244,6 @@ const updateUserProfile = async (req, res) => {
             branch: updatedUser.branch,
             token: generateToken(updatedUser._id),
         });
-    } else {
-        res.status(404).json({ message: 'User not found' });
     }
 };
 
@@ -199,10 +252,10 @@ const updateUserProfile = async (req, res) => {
 // @access  Private
 const getUserProfile = async (req, res) => {
     try {
-        const user = await User.findById(req.user._id).select('-password');
+        let user = await User.findById(req.user._id).select('-password');
         
         if (user) {
-            res.json({
+            return res.json({
                 _id: user._id,
                 name: user.name,
                 email: user.email,
@@ -214,9 +267,34 @@ const getUserProfile = async (req, res) => {
                 role: user.role,
                 branch: user.branch
             });
-        } else {
-            res.status(404).json({ message: 'User not found' });
+        } 
+        
+        // Check Branch
+        const Branch = require('../models/Branch');
+        const branch = await Branch.findById(req.user._id).select('-password');
+
+        if (branch) {
+            // Format address to string
+            const addressStr = branch.address ? 
+                [branch.address.street, branch.address.city, branch.address.state, branch.address.pincode]
+                .filter(Boolean).join(', ') : '';
+
+            return res.json({
+                _id: branch._id,
+                name: branch.name,
+                email: branch.contact?.email || '',
+                username: branch.username,
+                phone: branch.contact?.phone || '',
+                businessName: branch.name, // Use branch name as business name context
+                gstin: '', // Branches usually inherit
+                address: addressStr,
+                role: 'branch_manager',
+                branch: branch.name
+            });
         }
+
+        res.status(404).json({ message: 'User not found' });
+        
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -233,7 +311,14 @@ const changePassword = async (req, res) => {
             return res.status(400).json({ message: 'Please provide current and new password' });
         }
 
-        const user = await User.findById(req.user._id);
+        let user = await User.findById(req.user._id);
+        let isBranch = false;
+
+        if (!user) {
+             const Branch = require('../models/Branch');
+             user = await Branch.findById(req.user._id);
+             isBranch = true;
+        }
 
         if (!user) {
             return res.status(404).json({ message: 'User not found' });

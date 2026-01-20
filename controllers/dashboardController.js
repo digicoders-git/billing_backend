@@ -35,19 +35,59 @@ const getDashboardStats = async (req, res) => {
         const accounts = await Account.find({});
         const currentBalance = accounts.reduce((sum, acc) => sum + (acc.openingBalance || 0), 0);
 
-        // 4. Recent Transactions (Latest 5 Invoices)
-        const recentTransactions = await Invoice.find({})
+        // 4. Recent Transactions (Latest 5 from both Invoices and Purchases)
+        const recentInvoices = await Invoice.find({})
             .sort({ createdAt: -1 })
             .limit(5)
             .populate('party', 'name');
 
-        const formattedTransactions = recentTransactions.map(inv => ({
-            id: inv.invoiceNo,
-            customer: inv.party ? inv.party.name : inv.partyName,
-            type: 'Sales Invoices',
-            amount: `₹ ${inv.totalAmount.toLocaleString()}`,
-            date: new Date(inv.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-        }));
+        const recentPurchases = await Purchase.find({})
+            .sort({ createdAt: -1 })
+            .limit(5)
+            .populate('party', 'name');
+
+        const recentPayments = await Payment.find({})
+            .sort({ createdAt: -1 })
+            .limit(5)
+            .populate('party', 'name');
+
+        const combined = [
+            ...recentInvoices.map(inv => ({
+                _id: inv._id,
+                id: inv.invoiceNo,
+                customer: inv.party ? inv.party.name : inv.partyName,
+                type: 'Sales Invoices',
+                amount: `₹ ${inv.totalAmount.toLocaleString()}`,
+                date: new Date(inv.date),
+                displayDate: new Date(inv.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+            })),
+            ...recentPurchases.map(pur => ({
+                _id: pur._id,
+                id: pur.purchaseNo || pur._id,
+                customer: pur.party ? pur.party.name : pur.partyName,
+                type: 'Purchase',
+                amount: `₹ ${pur.totalAmount.toLocaleString()}`,
+                date: new Date(pur.date),
+                displayDate: new Date(pur.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+            })),
+            ...recentPayments.map(pay => ({
+                _id: pay._id,
+                id: pay.receiptNo,
+                customer: pay.party ? pay.party.name : pay.partyName,
+                type: pay.type, // 'Payment In' or 'Payment Out'
+                amount: `₹ ${pay.amount.toLocaleString()}`,
+                date: new Date(pay.date),
+                displayDate: new Date(pay.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+            }))
+        ];
+
+        const formattedTransactions = combined
+            .sort((a, b) => b.date - a.date)
+            .slice(0, 10) // Show top 10 now since we have more types
+            .map(t => ({
+                ...t,
+                date: t.displayDate
+            }));
 
         // 5. Revenue Chart Data (Last 6 Months)
         const sixMonthsAgo = new Date();

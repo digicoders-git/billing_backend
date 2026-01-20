@@ -36,6 +36,11 @@ const protect = async (req, res, next) => {
                 return res.status(401).json({ message: 'Not authorized, user not found' });
             }
 
+            // Check if account is active (specifically for branches)
+            if (req.user.hasOwnProperty('isActive') && req.user.isActive === false) {
+                 return res.status(401).json({ message: 'Account is inactive. Please contact admin.' });
+            }
+
             next();
         } catch (error) {
             console.log(error);
