@@ -1,4 +1,56 @@
 const Party = require('../models/Party');
+const axios = require('axios');
+
+// @desc    Get GSTIN details from external API
+// @route   GET /api/parties/gstin/:gstin
+// @access  Public
+const getGstinDetails = async (req, res) => {
+    try {
+        const { gstin } = req.params;
+        
+        if (!gstin || gstin.length !== 15) {
+            return res.status(400).json({ message: 'Invalid GSTIN. It must be 15 characters long.' });
+        }
+
+        // Try to fetch from a public GST search API
+        // Note: For production use, it is recommended to use a paid API service (like ClearTax, Razorpay, or IRIS)
+        // with a proper API key for reliability and volume.
+        try {
+            // Attempting to fetch from a public verification service
+            const response = await axios.get(`https://app.getclear.in/api/v1/gstin/search?gstin=${gstin.toUpperCase()}`, {
+                timeout: 10000
+            });
+            
+            if (response.data) {
+                const data = response.data;
+                // Format the response to match our party schema
+                const result = {
+                    name: data.legal_name || data.trade_name || '',
+                    billingAddress: data.address || '',
+                    placeOfSupply: data.state || '',
+                    pan: gstin.substring(2, 12).toUpperCase(),
+                    gstin: gstin.toUpperCase(),
+                    success: true
+                };
+                return res.json(result);
+            }
+        } catch (apiError) {
+            console.error('External GST API Error:', apiError.message);
+            // Fallback: If 3rd party API fails, return PAN extracted from GSTIN
+            return res.json({
+                name: '',
+                billingAddress: '',
+                placeOfSupply: '',
+                pan: gstin.substring(2, 12).toUpperCase(),
+                gstin: gstin.toUpperCase(),
+                success: false,
+                message: 'Auto-fetch failed, but PAN was extracted.'
+            });
+        }
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
 
 // @desc    Get all parties
 // @route   GET /api/parties
@@ -85,6 +137,7 @@ const deleteParty = async (req, res) => {
 };
 
 module.exports = {
+    getGstinDetails,
     getParties,
     getPartyById,
     createParty,

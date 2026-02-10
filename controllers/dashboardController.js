@@ -2,71 +2,76 @@ const Invoice = require('../models/Invoice');
 const Purchase = require('../models/Purchase');
 const Payment = require('../models/Payment');
 const Account = require('../models/Account');
+const Party = require('../models/Party');
+
 
 // @desc    Get dashboard stats
 // @route   GET /api/dashboard
 // @access  Public
 const getDashboardStats = async (req, res) => {
     try {
-        // 1. Calculate To Collect (Sum of balanceAmount of all Sales Invoices)
-        const invoices = await Invoice.aggregate([
-            {
-                $group: {
-                    _id: null,
-                    totalToCollect: { $sum: "$balanceAmount" }
-                }
-            }
+        // Fetch all data in parallel for speed
+        const [allParties, allInvoices, allPurchases, allAccounts, recentPayments] = await Promise.all([
+            Party.find({}),
+            Invoice.find({}),
+            Purchase.find({}),
+            Account.find({}),
+            Payment.find({}).sort({ createdAt: -1 }).limit(10).populate('party', 'name')
         ]);
-        const toCollect = invoices.length > 0 ? invoices[0].totalToCollect : 0;
 
-        // 2. Calculate To Pay (Sum of balanceAmount of all Purchases)
-        const purchases = await Purchase.aggregate([
-            {
-                $group: {
-                    _id: null,
-                    totalToPay: { $sum: "$balanceAmount" }
-                }
+        // 1. Calculate Parties Opening Balances
+        let partyToCollect = 0;
+        let partyToPay = 0;
+
+        allParties.forEach(party => {
+            const balance = Number(party.openingBalance) || 0;
+            const type = (party.balanceType || '').toLowerCase();
+            
+            if (type.includes('collect')) {
+                partyToCollect += balance;
+            } else if (type.includes('pay')) {
+                partyToPay += balance;
             }
-        ]);
-        const toPay = purchases.length > 0 ? purchases[0].totalToPay : 0;
+        });
+        
+        // 2. Calculate Invoices (Sales) Pending Balance
+        const invoiceToCollect = allInvoices.reduce((sum, inv) => sum + (Number(inv.balanceAmount) || 0), 0);
 
-        // 3. Calculate Cash + Bank Balance (Sum of all Accounts' openingBalance + transactions effect)
-        // Ideally we should rely on the Account model directly
-        const accounts = await Account.find({});
-        const currentBalance = accounts.reduce((sum, acc) => sum + (acc.openingBalance || 0), 0);
+        // 3. Calculate Purchases Pending Balance
+        const purchaseToPay = allPurchases.reduce((sum, pur) => sum + (Number(pur.balanceAmount) || 0), 0);
 
-        // 4. Recent Transactions (Latest 5 from both Invoices and Purchases)
-        const recentInvoices = await Invoice.find({})
-            .sort({ createdAt: -1 })
-            .limit(5)
-            .populate('party', 'name');
+        // Grand Totals
+        const toCollect = partyToCollect + invoiceToCollect;
+        const toPay = partyToPay + purchaseToPay;
 
-        const recentPurchases = await Purchase.find({})
-            .sort({ createdAt: -1 })
-            .limit(5)
-            .populate('party', 'name');
+        // 4. Cash + Bank Balance
+        const currentBalance = allAccounts.reduce((sum, acc) => sum + (Number(acc.openingBalance) || 0), 0);
 
-        const recentPayments = await Payment.find({})
-            .sort({ createdAt: -1 })
-            .limit(5)
-            .populate('party', 'name');
+        // 5. Build Recent Transactions List
+        const recentInv = allInvoices
+            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+            .slice(0, 5);
+
+        const recentPur = allPurchases
+            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+            .slice(0, 5);
 
         const combined = [
-            ...recentInvoices.map(inv => ({
+            ...recentInv.map(inv => ({
                 _id: inv._id,
                 id: inv.invoiceNo,
                 customer: inv.party ? inv.party.name : inv.partyName,
-                type: 'Sales Invoices',
-                amount: `₹ ${inv.totalAmount.toLocaleString()}`,
+                type: 'Sales Invoice',
+                amount: `₹ ${(Number(inv.totalAmount) || 0).toLocaleString('en-IN')}`,
                 date: new Date(inv.date),
                 displayDate: new Date(inv.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
             })),
-            ...recentPurchases.map(pur => ({
+            ...recentPur.map(pur => ({
                 _id: pur._id,
-                id: pur.purchaseNo || pur._id,
+                id: pur.billNo || pur.invoiceNo || pur._id,
                 customer: pur.party ? pur.party.name : pur.partyName,
                 type: 'Purchase',
-                amount: `₹ ${pur.totalAmount.toLocaleString()}`,
+                amount: `₹ ${(Number(pur.totalAmount) || 0).toLocaleString('en-IN')}`,
                 date: new Date(pur.date),
                 displayDate: new Date(pur.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
             })),
@@ -74,8 +79,8 @@ const getDashboardStats = async (req, res) => {
                 _id: pay._id,
                 id: pay.receiptNo,
                 customer: pay.party ? pay.party.name : pay.partyName,
-                type: pay.type, // 'Payment In' or 'Payment Out'
-                amount: `₹ ${pay.amount.toLocaleString()}`,
+                type: pay.type,
+                amount: `₹ ${(Number(pay.amount) || 0).toLocaleString('en-IN')}`,
                 date: new Date(pay.date),
                 displayDate: new Date(pay.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
             }))
@@ -83,56 +88,33 @@ const getDashboardStats = async (req, res) => {
 
         const formattedTransactions = combined
             .sort((a, b) => b.date - a.date)
-            .slice(0, 10) // Show top 10 now since we have more types
+            .slice(0, 10)
             .map(t => ({
                 ...t,
                 date: t.displayDate
             }));
 
-        // 5. Revenue Chart Data (Last 6 Months)
+        // 6. Revenue Chart (Sales)
         const sixMonthsAgo = new Date();
         sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-
         const monthlyRevenue = await Invoice.aggregate([
-            {
-                $match: {
-                    date: { $gte: sixMonthsAgo }
-                }
-            },
-            {
-                $group: {
-                    _id: { $month: "$date" },
-                    totalRevenue: { $sum: "$totalAmount" },
-                    year: { $first: { $year: "$date" } }
-                }
-            },
+            { $match: { date: { $gte: sixMonthsAgo } } },
+            { $group: { _id: { $month: "$date" }, totalRevenue: { $sum: "$totalAmount" } } },
             { $sort: { "_id": 1 } }
         ]);
 
-        // Map month numbers to names
         const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
         const incomeChart = {
             categories: monthlyRevenue.map(item => monthNames[item._id - 1]),
             data: monthlyRevenue.map(item => item.totalRevenue)
         };
 
-        // 6. Invoice Status Distribution
+        // 7. Status Distribution
         const statusDistribution = await Invoice.aggregate([
-            {
-                $group: {
-                    _id: "$status",
-                    count: { $sum: 1 },
-                    totalValue: { $sum: "$totalAmount" }
-                }
-            }
+            { $group: { _id: "$status", count: { $sum: 1 } } }
         ]);
 
-        const invoiceStatus = {
-            paid: 0,
-            pending: 0,
-            overdue: 0
-        };
-
+        const invoiceStatus = { paid: 0, pending: 0, overdue: 0 };
         statusDistribution.forEach(stat => {
             if (stat._id === 'Paid') invoiceStatus.paid += stat.count;
             else if (stat._id === 'Unpaid' || stat._id === 'Partial') invoiceStatus.pending += stat.count;
@@ -140,16 +122,17 @@ const getDashboardStats = async (req, res) => {
         });
 
         res.json({
-            toCollect,
-            toPay,
-            currentBalance,
+            toCollect: parseFloat(toCollect.toFixed(2)),
+            toPay: parseFloat(toPay.toFixed(2)),
+            currentBalance: parseFloat(currentBalance.toFixed(2)),
             recentTransactions: formattedTransactions,
             incomeChart,
             invoiceStatus
         });
 
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        console.error('Dashboard Stats Error:', error);
+        res.status(500).json({ message: 'Internal Server Error' });
     }
 };
 
